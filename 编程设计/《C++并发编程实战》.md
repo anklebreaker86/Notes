@@ -273,11 +273,91 @@ class threadsafe_stack
 
 
 
+防范死锁的建议通常是，始终按相同顺序对两个互斥加锁
+
+若我们总是先锁互斥A再锁互斥B，则永远不会发生死锁
+
+
+
+有时会出现棘手情况，例如，运用多个互斥分别保护多个独立的实例，这些实例属于同一个类
+
+考虑一个函数，操作同一个类的两个实例，互相交换它们的内部数据，两个实例上的互斥都必须加锁
+
+若选用固定次序（先给第一个实例的互斥加锁，再轮到第二个实例的互斥），前面的建议就适得其反
+
+针对两个相同的实例，若两个线程都通过该函数在它们之间互换数据，只是两次调用的参数顺序相反，会导致它们陷入死锁
+
+
+
+C++提供了std::lock函数，可以同时锁住多个互斥，而没有发生死锁的风险
+
+```c++
+class some_big_object;
+
+void swap(some_big_object& lhs, some_big_object& rhs);
+
+class X
+{
+    private:
+    some_big_object some_detail;
+    std::mutex m;
+    
+    public:
+    X(some_big_object const& sd):some_detail(sd){}
+    
+    friend void swap(X& lhs, X& rhs)
+    {
+        if(&lhs == &rhs)
+            return;
+        std::lock(lhs.m, rhs.m);
+        std::lock_guard<std::mutex> lock_a(lhs.m, std::adopt_lock);
+        std::lock_guard<std::mutex> lock_b(rhs.m, std::adopt_lock);
+        swap(lhs.some_detail, rhs.some_detail);
+    }
+}
+```
+
+
+
+* 一开始就对比两个参数，以确定它们指向不同实例
+* 代码调用std::lock()锁定两个互斥，并依据它们分别构造std::lock_guard实例
+* 提供了std::adopt_lock对象，以指明互斥已被锁住，即互斥上有锁存在
+
+
+
+无论函数是正常返回，还是因受保护的操作抛出异常而导致退出，std::lock_guard都保证了互斥全都正确解锁
+
+std::lock()在其内部对lhs.m或rhs.m加锁，这一函数调用可能导致抛出异常，这样，异常便会从std::lock()向外传播
+
+
+
+假如std::lock()函数在其中一个互斥上成功获取了锁，但它试图在另一个互斥上获取锁时却有异常抛出，那么第一个锁就会自动释放：若加锁操作涉及多个互斥，则std::lock()函数的语义是“全员共同成败”
+
+
+
+std:: scoped_lock<>和std::lock_guard<>完全等价，只不过前者是可变参数模板
+
+```c++
+void swap(X& lhs, X& rhs)
+{
+    if(&lhs == &rhs)
+        return;
+    std::scoped_lock guard(lhs.m, rhs.m);
+    swap(lsh.some_detail, rhs.some_detail);
+}
+```
 
 
 
 
 
+
+
+
+
+
+
+6. **运用std::unique_lock<>灵活加锁**
 
 
 
