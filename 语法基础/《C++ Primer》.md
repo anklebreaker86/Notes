@@ -2151,6 +2151,304 @@ bool (*pf)(const string &, const string &); //pfz
 
 
 
+1. **设计Sales_data类**
+
+将Sales_data类变成抽象数据结构
+
+
+
+Sales_data接口应该包含以下操作：
+
+* 一个combine成员函数
+* 一个combine成员函数
+* 一个名为add的函数
+* 一个read函数
+* 一个print函数
+
+
+
+2. **定义改进的Sales_data类**
+
+成员函数的声明必须在类的内部，它的定义则既可以在类的内部也可以在类的外部
+
+作为接口组成部分的非成员函数，例如add、read和print等，它们的定义和声明都在类的外部
+
+
+
+```c++
+struct Sales_data{
+    std::string isbn() const { return bookNo; }
+    Sales_data& combine(const Sales_data&);
+    double avg_price() const;
+    
+    std::string bookNo;
+    unsigned units_sold = 0;
+    double revenue = 0.0;
+}
+
+//非成员接口函数
+Sales_data add (const Sales_data&, const Sales_data&);
+std::ostream &print (std::ostream&, const Sales_data&);
+std::istream &read (std::istream&, Sales_data&);
+```
+
+
+
+尽管所有成员都必须在类的内部声明，但是成员函数体可以定义在类内也可以定义在类外
+
+
+
+当我们调用成员函数时，实际上是在替某个对象调用它
+
+如果isbn指向Sales_data的成员（例如bookNo），则它隐式地指向调用该函数的对象的成员
+
+
+
+成员函数通过一个名为this的额外的隐式参数来访问调用它的那个对象
+
+任何对类成员的直接访问都被看作this的隐式引用，也就是说，当isbn使用bookNo时，它隐式地使用this指向的成员
+
+this是常量指针
+
+
+
+isbn函数的另一个关键之处是紧随参数列表之后的const关键字，这里，const的作用是修改隐式this指针的类型
+
+默认情况下，this的类型是指向类类型非常量版本的常量指针。例如在Sales_data成员函数中，this的类型是Sales_data ＊const
+
+
+
+C++语言的做法是允许把const关键字放在成员函数的参数列表之后，此时，紧跟在参数列表后面的const表示this是一个指向常量的指针。像这样使用const的成员函数被称作常量成员函数
+
+
+
+常量对象，以及常量对象的引用或指针都只能调用常量成员函数
+
+
+
+编译器分两步处理类：首先编译成员的声明，然后才轮到成员函数体（如果有的话）。因此，成员函数体可以随意使用类中的其他成员而无须在意这些成员出现的次序
+
+
+
+类外部定义的成员的名字必须包含它所属的类名
+
+```c++
+double Sales_data::avg_price() const 
+{
+    if(units_sold)
+        return revenue / units_sold;
+    else
+        return 0;
+}
+```
+
+定义了一个名为avg_price的函数，并且该函数被声明在类Sales_data的作用域内
+
+当avg_price使用revenue和units_sold时，实际上它隐式地使用了Sales_data的成员
+
+
+
+返回this对象的函数
+
+```c++
+Sales_data& Sales_data:combine(const Sales_data &rhs)
+{
+    units_sold += rhs.units_sold;
+    revenue += rhs.revenue;
+    return *this;
+}
+```
+
+
+
+3. **定义类相关的非成员函数**
+
+需要定义一些辅助函数
+
+尽管这些函数定义的操作从概念上来说属于类的接口的组成部分，但它们实际上并不属于类本身
+
+
+
+一般来说，如果非成员函数是类接口的组成部分，则这些函数的声明应该与类在同一个头文件内
+
+
+
+```c++
+Sales_data add(const Sales_data &lhs, const Sales_data &rhs)
+{
+    Sales_data sum = lhs;
+    sum.combine(rhs);
+    return suml
+}
+```
+
+我们用lhs的副本来初始化sum。默认情况下，拷贝类的对象其实拷贝的是对象的数据成员
+
+
+
+4. **构造函数**
+
+每个类都分别定义了它的对象被初始化的方式，类通过一个或几个特殊的成员函数来控制其对象的初始化过程，这些函数叫做构造函数
+
+
+
+==构造函数的名字和类名相同==
+
+构造函数没有返回类型
+
+构造函数也有一个（可能为空的）参数列表和一个（可能为空的）函数体
+
+ 类可以包含多个构造函数，和其他重载函数差不多
+
+
+
+不同于其他成员函数，构造函数不能被声明成const的
+
+构造函数在const对象的构造过程中可以向其写值
+
+
+
+类通过一个特殊的构造函数来控制默认初始化过程，这个函数叫做默认构造函数（default constructor）
+
+默认构造函数无须任何实参
+
+
+
+若没有显式定义构造函数，则编译器会隐式定义一个默认构造函数
+
+编译器创建的构造函数又称为合成的默认构造函数（synthesized default constructor）
+
+* 若存在类内初始值，用它来初始化成员
+* 否则，默认初始化该成员
+
+
+
+合成的默认构造函数只适合非常简单的类
+
+对于一个普通的类来说，必须定义它自己的默认构造函数
+
+原因：
+
+* 编译器只有在发现类不包含任何构造函数的情况下才会替我们生成一个默认的构造函数
+
+* 对于某些类来说，合成的默认构造函数可能执行错误的操作
+
+  如果定义在块中的内置类型或复合类型（如数组或指针）的对象被默认初始化，则他们的值将是未定义的
+
+* 有的时候编译器不能为某些类合成默认的构造函数
+
+​		例如，如果类中包含一个其他类类型的成员且这个成员的类型没有默认构造函数，那么编译器将无法初始化该成员
+
+
+
+如果我们需要默认的行为，那么可以通过在参数列表后面写上= default来要求编译器生成构造函数
+
+```c++
+struct Sales_data
+{
+    Sales_Data() = default;
+    ...
+}
+```
+
+
+
+```c++
+Sales_data(const std::string &s):bookNo(s) {}
+Sales_data(const std:: string &s, unsigned n, double p):
+	bookNo(s), units_sold(n), revenue(p*n) {}
+```
+
+冒号和花括号之间的代码为构造函数初始值列表（constructor initialize list）
+
+它负责为新创建的对象的一个或几个数据成员赋初值
+
+构造函数初始值是成员名字的一个列表，每个名字后面紧跟括号括起来的（或者在花括号内的）成员初始值
+
+
+
+当某个数据成员被构造函数初始值列表忽略时，它将以与合成默认构造函数相同的方式隐式初始化
+
+
+
+和其他成员函数一样，当我们在类的外部定义构造函数时，必须指明该构造函数是哪个类的成员
+
+```c++
+Sales_data::Sales_data(std::istream &is)
+{
+    read(is, *this);
+}
+```
+
+
+
+5. **拷贝、赋值和析构**
+
+
+
+对象在几种情况下会被拷贝，如初始化变量以及以值的方式传递或返回一个对象等
+
+当我们使用了赋值运算符时会发生对象的赋值操作
+
+当对象不再存在时执行销毁的操作，比如一个局部对象会在创建它的块结束时被销毁
+
+
+
+如果我们不主动定义这些操作，则编译器将替我们合成它们
+
+
+
+对于某些类来说合成的版本无法正常工作
+
+特别是，当类需要分配类对象之外的资源时，合成的版本常常会失效
+
+
+
+很多需要动态内存的类能（而且应该）使用vector对象或者string对象管理必要的存储空间
+
+如果类包含vector或者string成员，则其拷贝、赋值和销毁的合成版本能够正常工作
+
+
+
+## 7.2 访问控制与封装
+
+在C++语言中，我们使用访问说明符（access specifiers）加强类的封装性
+
+* 定义在public说明符之后的成员在整个程序内可被访问，public成员定义类的接口
+* 定义在private说明符之后的成员可以被类的成员函数访问，但是不能被使用该类的代码访问，private部分封装了（即隐藏了）类的实现细节
+
+
+
+构造函数和部分成员函数（即isbn和combine）紧跟在public说明符之后；而数据成员和作为实现部分的函数则跟在private说明符后面
+
+一个类可以包含0个或多个访问说明符
+
+
+
+我们使用了class关键字而非struct开始类的定义
+
+这种变化仅仅是形式上有所不同
+
+
+
+类可以在它的第一个访问说明符之前定义成员，对这种成员的访问权限依赖于类定义的方式
+
+如果我们使用struct关键字，则定义在第一个访问说明符之前的成员是public的；相反，如果我们使用class关键字，则这些成员是private的
+
+
+
+1. **友元**
+
+
+
+
+
+
+
+
+
+
+
 
 
 
